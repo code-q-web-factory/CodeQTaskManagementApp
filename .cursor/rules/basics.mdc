@@ -1,0 +1,9 @@
+---
+alwaysApply: true
+---
+
+# Coding Rules
+- Prefer functional components with hooks
+- Create UI components as dump presentational components and then use them. The goal is to separate presentation and integration.
+- Make sure that all code and all comments are in English.
+- Start with type definitions, before writing any code.
