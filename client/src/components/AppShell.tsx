@@ -10,6 +10,7 @@ export function AppShell({ children }: AppShellProps) {
   const { pathname } = useLocation()
   const items = [
     { to: '/critical', label: 'Critical' },
+    { to: '/focused', label: 'Focused Work' },
     { to: '/settings', label: 'Settings' },
   ]
   return (

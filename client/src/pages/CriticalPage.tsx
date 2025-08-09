@@ -16,6 +16,15 @@ function firstName(full: string | null): string | null {
   return first || null
 }
 
+function isInMaybeLater(task: AsanaTask): boolean {
+  const memberships = task.memberships ?? []
+  for (const m of memberships) {
+    const name = m.section?.name?.trim().toLowerCase()
+    if (name === 'maybe later') return true
+  }
+  return false
+}
+
 function normalizeTask(t: AsanaTask, timeWorkedSeconds?: number): NormalizedTask {
   return {
     id: t.gid,
@@ -74,7 +83,14 @@ export default function CriticalPage() {
         const [asanaOldSixM, asanaOldOneM, entries] = await Promise.all([
           asanaService.findTasksOlderThan(workspaces[0].gid, toISODate(sixMonthsAgo)),
           asanaService.findTasksOlderThan(workspaces[0].gid, toISODate(oneMonthAgo)),
-          everhourService.listTimeEntries({}),
+          (async () => {
+            try {
+              return await everhourService.listTimeEntries({})
+            } catch {
+              // Graceful degradation if Everhour key is missing
+              return []
+            }
+          })(),
         ])
 
         const byTask = new Map(entries.filter((e) => e.taskId).map((e) => [e.taskId!, 0]))
@@ -84,17 +100,27 @@ export default function CriticalPage() {
         }
 
         const olderSixNorm = asanaOldSixM
-          .filter((t: any) => !t.completed)
+          .filter((t) => !t.completed && !isInMaybeLater(t))
           .map((t) => normalizeTask(t, byTask.get(t.gid)))
+          // Deduplicate normalized tasks by id to avoid duplicate keys in render
+          .reduce<NormalizedTask[]>((acc, cur) => {
+            if (!acc.some((x) => x.id === cur.id)) acc.push(cur)
+            return acc
+          }, [])
         setOlderThanSixMonths(olderSixNorm)
 
         const olderOneNorm = asanaOldOneM
-          .filter((t: any) => !t.completed)
+          .filter((t) => !t.completed && !isInMaybeLater(t))
           .map((t) => normalizeTask(t, byTask.get(t.gid)))
           .filter((t) => (t.timeWorkedSeconds ?? 0) > 3600)
+          .reduce<NormalizedTask[]>((acc, cur) => {
+            if (!acc.some((x) => x.id === cur.id)) acc.push(cur)
+            return acc
+          }, [])
         setOlderThanOneMonthSpentHour(olderOneNorm)
-      } catch (e: any) {
-        setError(e?.message ?? 'Failed loading data')
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : 'Failed loading data'
+        setError(message)
       } finally {
         setLoading(false)
       }
@@ -125,17 +151,21 @@ export default function CriticalPage() {
       .sort((a, b) => a.name.localeCompare(b.name))
   }, [olderThanSixMonths, olderThanOneMonthSpentHour])
 
-  const filteredOlderThanSixMonths = useMemo(() => {
-    if (selectedAssignee === 'ALL') return olderThanSixMonths
-    if (selectedAssignee === 'UNASSIGNED') return olderThanSixMonths.filter((t) => !t.assigneeId)
-    return olderThanSixMonths.filter((t) => t.assigneeId === selectedAssignee)
-  }, [olderThanSixMonths, selectedAssignee])
+  function matchesAssignee(task: NormalizedTask, value: AssigneeFilterValue): boolean {
+    if (value === 'ALL') return true
+    if (value === 'UNASSIGNED') return !task.assigneeId
+    return task.assigneeId === value
+  }
 
-  const filteredOlderThanOneMonth = useMemo(() => {
-    if (selectedAssignee === 'ALL') return olderThanOneMonthSpentHour
-    if (selectedAssignee === 'UNASSIGNED') return olderThanOneMonthSpentHour.filter((t) => !t.assigneeId)
-    return olderThanOneMonthSpentHour.filter((t) => t.assigneeId === selectedAssignee)
-  }, [olderThanOneMonthSpentHour, selectedAssignee])
+  const filteredOlderThanSixMonths = useMemo(
+    () => olderThanSixMonths.filter((t) => matchesAssignee(t, selectedAssignee)),
+    [olderThanSixMonths, selectedAssignee],
+  )
+
+  const filteredOlderThanOneMonth = useMemo(
+    () => olderThanOneMonthSpentHour.filter((t) => matchesAssignee(t, selectedAssignee)),
+    [olderThanOneMonthSpentHour, selectedAssignee],
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -122,12 +122,28 @@ export class AsanaService {
     if (!this.tasksApi) throw new Error('Asana token not set')
     const Asana = await getAsanaSdk()
     const projectsApi = new (Asana.ProjectsApi as new () => unknown)() as unknown as ProjectsApi
-    const opt_fields = ['gid', 'name', 'created_at', 'permalink_url', 'assignee.gid', 'assignee.name', 'completed'].join(',')
+    const opt_fields = [
+      'gid',
+      'name',
+      'created_at',
+      'permalink_url',
+      'assignee.gid',
+      'assignee.name',
+      'completed',
+      // include memberships to read section/column names
+      'memberships.section.name',
+      'memberships.section.gid',
+      'memberships.project.gid',
+      'memberships.project.name',
+    ].join(',')
 
     // persistent cache (10 minutes)
     const storageKey = this.cacheKeyOlderThan(workspaceGid, isoDate)
     const persisted = this.persistentGet<AsanaTask[]>(storageKey, 600_000)
-    if (persisted) return persisted
+    if (persisted) {
+      // Always dedupe persisted results in case older versions cached duplicates
+      return this.dedupeTasksById(persisted)
+    }
 
     const projectsKey = `workspace-projects:${workspaceGid}`
     const projects = await this.withMemo(projectsKey, async () => {
@@ -151,8 +167,9 @@ export class AsanaService {
         offset = page.next_page?.offset
       } while (offset)
     }
-    this.persistentSet(storageKey, results)
-    return results
+    const deduped = this.dedupeTasksById(results)
+    this.persistentSet(storageKey, deduped)
+    return deduped
   }
 
   // ----- persistent cache helpers -----
@@ -192,6 +209,42 @@ export class AsanaService {
       // ignore
     }
     this.memo.clear()
+  }
+
+  // ---- helpers ----
+  private dedupeTasksById(tasks: AsanaTask[]): AsanaTask[] {
+    const byId = new Map<string, AsanaTask>()
+    for (const t of tasks) {
+      const existing = byId.get(t.gid)
+      if (!existing) {
+        // Clone shallowly to avoid mutating the source array
+        byId.set(t.gid, { ...t, memberships: t.memberships ? [...t.memberships] : undefined })
+        continue
+      }
+      // Merge memberships, keeping unique project+section combinations
+      const mergedMemberships: NonNullable<AsanaTask['memberships']> = []
+      const pushUnique = (m?: AsanaTask['memberships']) => {
+        if (!m) return
+        for (const item of m) {
+          const key = `${item.project?.gid ?? ''}:${item.section?.gid ?? ''}`
+          if (!mergedMemberships.some((x) => `${x.project?.gid ?? ''}:${x.section?.gid ?? ''}` === key)) {
+            mergedMemberships.push(item)
+          }
+        }
+      }
+      pushUnique(existing.memberships)
+      pushUnique(t.memberships)
+
+      existing.memberships = mergedMemberships.length ? mergedMemberships : existing.memberships ?? t.memberships
+      // Prefer non-null assignee/completed when missing on the existing record
+      if (!existing.assignee && t.assignee) existing.assignee = t.assignee
+      if (existing.completed === undefined && t.completed !== undefined) existing.completed = t.completed
+      // Keep earliest created_at just in case
+      if (existing.created_at && t.created_at && new Date(t.created_at) < new Date(existing.created_at)) {
+        existing.created_at = t.created_at
+      }
+    }
+    return Array.from(byId.values())
   }
 }
 

@@ -65,7 +65,8 @@ export class EverhourService {
     const records = await getAllTimeRecords(this.ensureClient(), from, to)
     const entries: EverhourTimeEntry[] = records.map((r) => ({
       id: String(r.id),
-      taskId: r.task?.id ?? null,
+      // Ensure task id is always a string to match Asana task gid join keys
+      taskId: r.task?.id != null ? String(r.task.id) : null,
       userId: String(r.user),
       time: r.time ?? 0,
       date: r.date,

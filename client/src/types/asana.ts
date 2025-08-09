@@ -14,6 +14,11 @@ export interface AsanaTask {
   permalink_url: string
   assignee: AsanaUser | null
   completed?: boolean
+  // Optional memberships to access board columns (sections)
+  memberships?: Array<{
+    section?: { gid: AsanaGid; name: string | null } | null
+    project?: { gid: AsanaGid; name: string }
+  }>
 }
 
 export interface AsanaWorkspace {

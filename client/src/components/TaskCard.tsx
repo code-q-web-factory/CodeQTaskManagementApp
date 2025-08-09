@@ -9,6 +9,8 @@ export function TaskCard({ task }: TaskCardProps) {
   const name = task.assigneeFullName ?? 'Unassigned'
   const emoji = firstName ? '👤' : '❔'
   const hours = (task.timeWorkedSeconds ?? 0) / 3600
+  const createdDate = task.createdAt ? new Date(task.createdAt) : null
+  const createdLabel = createdDate ? createdDate.toLocaleDateString() : ''
 
   return (
     <a
@@ -21,9 +23,17 @@ export function TaskCard({ task }: TaskCardProps) {
         <div>
           <h3 className="text-base font-semibold text-gray-900">{task.title}</h3>
           <div className="mt-1 text-sm text-gray-600">
-            <span className="inline-flex items-center gap-1">
-              <span className="text-base">{emoji}</span>
-              <span>{firstName ?? name}</span>
+            <span className="inline-flex items-center gap-3">
+              <span className="inline-flex items-center gap-1">
+                <span className="text-base">{emoji}</span>
+                <span>{firstName ?? name}</span>
+              </span>
+              {createdLabel && (
+                <span className="inline-flex items-center gap-1 text-gray-500">
+                  <span className="text-base">📅</span>
+                  <span>{createdLabel}</span>
+                </span>
+              )}
             </span>
           </div>
         </div>
