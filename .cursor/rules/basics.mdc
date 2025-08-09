@@ -7,3 +7,8 @@ alwaysApply: true
 - Create UI components as dump presentational components and then use them. The goal is to separate presentation and integration.
 - Make sure that all code and all comments are in English.
 - Start with type definitions, before writing any code.
+
+# Steps to finish a task
+- Always check if tests are valid with `nvm use && npm test` and `nvm use && npx playwright test`
+- Check if any dead code can be removed and recommend a cleanup
+- Recommend a git message text

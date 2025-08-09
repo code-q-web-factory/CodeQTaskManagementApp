@@ -34,6 +34,7 @@ npm run preview
 ```bash
 nvm use
 npm test
+npx playwright test
 ```
 
 Additional commands:

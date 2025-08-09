@@ -11,6 +11,8 @@ module.exports = {
     '^.+\\.(svg|png|jpg|jpeg|gif)$': '<rootDir>/test/fileMock.js',
   },
   testPathIgnorePatterns: ['/node_modules/', '/dist/'],
+  // Exclude Playwright test suites from Jest
+  testPathIgnorePatterns: ['/node_modules/', '/dist/', '/tests/', '/tests-examples/'],
   extensionsToTreatAsEsm: [],
 }
 
