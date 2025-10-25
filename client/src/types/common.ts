@@ -11,6 +11,8 @@ export interface NormalizedTask {
   // Optional assignee id for potential future filtering/joins
   assigneeId?: string | null
   timeWorkedSeconds?: number
+  // Projects this task belongs to, used for grouping in UI
+  projects?: Array<{ id: string; name: string }>
 }
 
 

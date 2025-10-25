@@ -5,6 +5,7 @@ import { asanaService } from '../services/asanaService'
 import type { AsanaTask, AsanaWorkspace } from '../types/asana'
 import type { NormalizedTask } from '../types/common'
 import { TaskCard } from '../components/TaskCard'
+import { ProjectSection } from '../components/ProjectSection.tsx'
 
 type PresetKey = keyof typeof FOCUSED_WORK_PRESETS | 'Code Q Delegated'
 
@@ -23,6 +24,13 @@ function normalizeTask(t: AsanaTask): NormalizedTask {
     assigneeFirstName: firstName(t.assignee?.name ?? null),
     assigneeFullName: t.assignee?.name ?? null,
     assigneeId: t.assignee?.gid ?? null,
+    projects: (t.memberships ?? [])
+      .map((m) => m.project)
+      .filter((p): p is { gid: string; name: string } => !!p)
+      .reduce<Array<{ id: string; name: string }>>((acc, p) => {
+        if (!acc.some((x) => x.id === p.gid)) acc.push({ id: p.gid, name: p.name })
+        return acc
+      }, []),
   }
 }
 
@@ -184,6 +192,41 @@ export default function FocusedWorkPage() {
     </Button>
   ))
 
+  // Group tasks by project for display
+  const groups = useMemo(() => {
+    if (!selectedPreset) return [] as Array<{ id: string; name: string; tasks: NormalizedTask[] }>
+    const source = selectedPreset === 'Code Q Delegated' ? delegatedTasks : tasks
+    const isOther = selectedPreset === 'Other'
+    const isDelegated = selectedPreset === 'Code Q Delegated'
+    const selectedIds =
+      selectedPreset in FOCUSED_WORK_PRESETS
+        ? new Set(FOCUSED_WORK_PRESETS[selectedPreset as keyof typeof FOCUSED_WORK_PRESETS])
+        : new Set<string>()
+    const allCurated = new Set(
+      Object.entries(FOCUSED_WORK_PRESETS)
+        .filter(([k]) => k !== 'Other')
+        .flatMap(([, ids]) => ids),
+    )
+
+    const map = new Map<string, { id: string; name: string; tasks: NormalizedTask[] }>()
+    for (const task of source) {
+      let memberships = task.projects ?? []
+      if (!memberships.length) memberships = [{ id: 'none', name: 'No project' }]
+      let effective = memberships
+      if (!isOther && !isDelegated && selectedIds.size > 0) {
+        effective = memberships.filter((p) => selectedIds.has(p.id))
+      } else if (isOther) {
+        effective = memberships.filter((p) => !allCurated.has(p.id))
+      }
+      for (const proj of effective) {
+        const entry = map.get(proj.id) ?? { id: proj.id, name: proj.name, tasks: [] }
+        entry.tasks.push(task)
+        map.set(proj.id, entry)
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+  }, [selectedPreset, tasks, delegatedTasks])
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="mx-auto flex min-h-screen max-w-3xl flex-col rounded-none sm:rounded-lg border border-gray-200 shadow-sm bg-white">
@@ -198,32 +241,21 @@ export default function FocusedWorkPage() {
             <div className="mt-4 text-xs text-gray-500">Refreshing…</div>
           )}
 
-          {selectedPreset && selectedPreset !== 'Code Q Delegated' && (
-            <section className="mt-6">
-              <h2 className="text-sm font-semibold text-gray-800">Tasks for {selectedPreset}</h2>
-              <div className="mt-3 space-y-3">
-                {tasks.map((t) => (
-                  <TaskCard key={t.id} task={t} />
-                ))}
-                {!tasks.length && !loading && (
-                  <div className="text-sm text-gray-500">No tasks found.</div>
-                )}
-              </div>
-            </section>
-          )}
-
-          {selectedPreset === 'Code Q Delegated' && (
-            <section className="mt-6">
-              <h2 className="text-sm font-semibold text-gray-800">Code Q Delegated</h2>
-              <div className="mt-3 space-y-3">
-                {delegatedTasks.map((t) => (
-                  <TaskCard key={t.id} task={t} />
-                ))}
-                {!delegatedTasks.length && !loading && (
-                  <div className="text-sm text-gray-500">No tasks found.</div>
-                )}
-              </div>
-            </section>
+          {selectedPreset && (
+            <div className="mt-6 space-y-8">
+              {groups.map((g) => (
+                <ProjectSection key={g.id} title={g.name}>
+                  <div className="mt-3 space-y-3">
+                    {g.tasks.map((t) => (
+                      <TaskCard key={`${g.id}:${t.id}`} task={t} />
+                    ))}
+                  </div>
+                </ProjectSection>
+              ))}
+              {!groups.length && !loading && (
+                <div className="text-sm text-gray-500">No tasks found.</div>
+              )}
+            </div>
           )}
         </div>
       </div>
