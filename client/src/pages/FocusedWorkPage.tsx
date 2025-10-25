@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../components/ui/button'
-import { FOCUSED_WORK_PRESETS } from '../config/asana'
+import { FOCUSED_WORK_PRESETS, EXCLUDED_TAG_IDS } from '../config/asana'
 import { asanaService } from '../services/asanaService'
 import type { AsanaTask, AsanaWorkspace } from '../types/asana'
 import type { NormalizedTask } from '../types/common'
 import { TaskCard } from '../components/TaskCard'
 
-type PresetKey = keyof typeof FOCUSED_WORK_PRESETS
+type PresetKey = keyof typeof FOCUSED_WORK_PRESETS | 'Code Q Delegated'
 
 function firstName(full: string | null): string | null {
   if (!full) return null
@@ -29,6 +29,7 @@ function normalizeTask(t: AsanaTask): NormalizedTask {
 export default function FocusedWorkPage() {
   const [selectedPreset, setSelectedPreset] = useState<PresetKey | null>(null)
   const [tasks, setTasks] = useState<NormalizedTask[]>([])
+  const [delegatedTasks, setDelegatedTasks] = useState<NormalizedTask[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,10 +49,15 @@ export default function FocusedWorkPage() {
 
   useEffect(() => {
     if (!selectedPreset || !workspace || !meGid) return
-    const projectIds = FOCUSED_WORK_PRESETS[selectedPreset]
+    const projectIds =
+      selectedPreset in FOCUSED_WORK_PRESETS
+        ? FOCUSED_WORK_PRESETS[selectedPreset as keyof typeof FOCUSED_WORK_PRESETS]
+        : []
     const isOther = selectedPreset === 'Other'
-    if (!isOther && (!projectIds || projectIds.length === 0)) {
+    const isDelegated = selectedPreset === 'Code Q Delegated'
+    if (!isOther && !isDelegated && (!projectIds || projectIds.length === 0)) {
       setTasks([])
+      setDelegatedTasks([])
       return
     }
 
@@ -64,16 +70,32 @@ export default function FocusedWorkPage() {
       if (cachedAll) {
         setError(null)
         const candidate = cachedAll.filter((t) => t.assignee?.gid === meGid)
+        const isExcludedByTag = (t: AsanaTask): boolean => {
+          const tags = t.tags ?? []
+          return tags.some((tag) => EXCLUDED_TAG_IDS.has(tag.gid))
+        }
         const allCurated = new Set(
           Object.entries(FOCUSED_WORK_PRESETS)
             .filter(([k]) => k !== 'Other')
             .flatMap(([, ids]) => ids),
         )
         const filtered = isOther
-          ? candidate.filter((t) => !t.memberships?.some((m) => m.project && allCurated.has(m.project.gid)))
-          : candidate.filter((t) => t.memberships?.some((m) => m.project && projectIds.includes(m.project.gid)))
+          ? candidate
+              .filter((t) => !t.memberships?.some((m) => m.project && allCurated.has(m.project.gid)))
+              .filter((t) => !isExcludedByTag(t))
+          : isDelegated
+          ? candidate.filter((t) => isExcludedByTag(t))
+          : candidate
+              .filter((t) => t.memberships?.some((m) => m.project && projectIds.includes(m.project.gid)))
+              .filter((t) => !isExcludedByTag(t))
         if (!cancelled) {
-          setTasks(filtered.map((t) => normalizeTask(t)))
+          if (isDelegated) {
+            setDelegatedTasks(filtered.map((t) => normalizeTask(t)))
+            setTasks([])
+          } else {
+            setTasks(filtered.map((t) => normalizeTask(t)))
+            setDelegatedTasks([])
+          }
           setLoading(false)
           setRefreshing(false)
         }
@@ -96,15 +118,31 @@ export default function FocusedWorkPage() {
         const all = await asanaService.findTasksOlderThan(workspace.gid, farFuture)
         if (cancelled) return
         const candidate = all.filter((t) => t.assignee?.gid === meGid)
+        const isExcludedByTag = (t: AsanaTask): boolean => {
+          const tags = t.tags ?? []
+          return tags.some((tag) => EXCLUDED_TAG_IDS.has(tag.gid))
+        }
         const allCurated = new Set(
           Object.entries(FOCUSED_WORK_PRESETS)
             .filter(([k]) => k !== 'Other')
             .flatMap(([, ids]) => ids),
         )
         const filtered = isOther
-          ? candidate.filter((t) => !t.memberships?.some((m) => m.project && allCurated.has(m.project.gid)))
-          : candidate.filter((t) => t.memberships?.some((m) => m.project && projectIds.includes(m.project.gid)))
-        setTasks(filtered.map((t) => normalizeTask(t)))
+          ? candidate
+              .filter((t) => !t.memberships?.some((m) => m.project && allCurated.has(m.project.gid)))
+              .filter((t) => !isExcludedByTag(t))
+          : isDelegated
+          ? candidate.filter((t) => isExcludedByTag(t))
+          : candidate
+              .filter((t) => t.memberships?.some((m) => m.project && projectIds.includes(m.project.gid)))
+              .filter((t) => !isExcludedByTag(t))
+        if (isDelegated) {
+          setDelegatedTasks(filtered.map((t) => normalizeTask(t)))
+          setTasks([])
+        } else {
+          setTasks(filtered.map((t) => normalizeTask(t)))
+          setDelegatedTasks([])
+        }
         setError(null)
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed loading tasks')
@@ -131,7 +169,11 @@ export default function FocusedWorkPage() {
     [],
   )
 
-  const buttons = (Object.keys(FOCUSED_WORK_PRESETS) as PresetKey[]).map((key) => (
+  const presetKeys: PresetKey[] = [
+    ...(Object.keys(FOCUSED_WORK_PRESETS) as (keyof typeof FOCUSED_WORK_PRESETS)[]),
+    'Code Q Delegated',
+  ]
+  const buttons = presetKeys.map((key) => (
     <Button
       key={key}
       variant={selectedPreset === key ? 'default' : 'secondary'}
@@ -156,7 +198,7 @@ export default function FocusedWorkPage() {
             <div className="mt-4 text-xs text-gray-500">Refreshing…</div>
           )}
 
-          {selectedPreset && (
+          {selectedPreset && selectedPreset !== 'Code Q Delegated' && (
             <section className="mt-6">
               <h2 className="text-sm font-semibold text-gray-800">Tasks for {selectedPreset}</h2>
               <div className="mt-3 space-y-3">
@@ -164,6 +206,20 @@ export default function FocusedWorkPage() {
                   <TaskCard key={t.id} task={t} />
                 ))}
                 {!tasks.length && !loading && (
+                  <div className="text-sm text-gray-500">No tasks found.</div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {selectedPreset === 'Code Q Delegated' && (
+            <section className="mt-6">
+              <h2 className="text-sm font-semibold text-gray-800">Code Q Delegated</h2>
+              <div className="mt-3 space-y-3">
+                {delegatedTasks.map((t) => (
+                  <TaskCard key={t.id} task={t} />
+                ))}
+                {!delegatedTasks.length && !loading && (
                   <div className="text-sm text-gray-500">No tasks found.</div>
                 )}
               </div>

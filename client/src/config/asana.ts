@@ -29,4 +29,16 @@ export const FOCUSED_WORK_PRESETS: Record<string, string[]> = {
   'Other': [],
 }
 
+// Tags to exclude from Focused Work tabs; excluded tasks will be shown in the
+// dedicated "Code Q Delegated" tab instead. Prefer tag IDs for stability
+// (names can be renamed in Asana).
+//
+// How to find a tag ID in Asana:
+// 1) Open a task that has the tag in Asana.
+// 2) Click the tag chip to open the Tag page.
+// 3) The URL looks like https://app.asana.com/0/tag/<TAG_ID>/list → use <TAG_ID>.
+export const EXCLUDED_TAG_IDS: ReadonlySet<string> = new Set([
+  '1211748196378006', // Team https://app.asana.com/0/1211748196378006/1211748196378006
+])
+
 

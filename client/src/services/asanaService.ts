@@ -159,6 +159,9 @@ export class AsanaService {
       'memberships.section.gid',
       'memberships.project.gid',
       'memberships.project.name',
+      // include tags for filtering
+      'tags.gid',
+      'tags.name',
     ].join(',')
 
     // persistent cache (10 minutes)
@@ -223,7 +226,7 @@ export class AsanaService {
 
   // ----- persistent cache helpers -----
   private cacheKeyOlderThan(workspaceGid: string, isoDate: string): string {
-    return `aqm:asana:olderThan:${workspaceGid}:${isoDate}`
+    return `aqm:v2:asana:olderThan:${workspaceGid}:${isoDate}`
   }
 
   private persistentGet<T>(key: string, ttlMs: number): T | null {
@@ -249,10 +252,10 @@ export class AsanaService {
 
   clearPersistentCache(): void {
     try {
-      const prefix = 'aqm:asana:olderThan:'
+      const prefixes = ['aqm:asana:olderThan:', 'aqm:v2:asana:olderThan:']
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i)
-        if (k && k.startsWith(prefix)) localStorage.removeItem(k)
+        if (k && prefixes.some((p) => k.startsWith(p))) localStorage.removeItem(k)
       }
     } catch {
       // ignore
@@ -267,7 +270,11 @@ export class AsanaService {
       const existing = byId.get(t.gid)
       if (!existing) {
         // Clone shallowly to avoid mutating the source array
-        byId.set(t.gid, { ...t, memberships: t.memberships ? [...t.memberships] : undefined })
+        byId.set(t.gid, {
+          ...t,
+          memberships: t.memberships ? [...t.memberships] : undefined,
+          tags: t.tags ? [...t.tags] : undefined,
+        })
         continue
       }
       // Merge memberships, keeping unique project+section combinations
@@ -285,6 +292,17 @@ export class AsanaService {
       pushUnique(t.memberships)
 
       existing.memberships = mergedMemberships.length ? mergedMemberships : existing.memberships ?? t.memberships
+      // Merge tags uniquely by gid
+      const mergedTags: NonNullable<AsanaTask['tags']> = []
+      const pushUniqueTags = (arr?: AsanaTask['tags']) => {
+        if (!arr) return
+        for (const tag of arr) {
+          if (!mergedTags.some((x) => x.gid === tag.gid)) mergedTags.push(tag)
+        }
+      }
+      pushUniqueTags(existing.tags)
+      pushUniqueTags(t.tags)
+      existing.tags = mergedTags.length ? mergedTags : existing.tags ?? t.tags
       // Prefer non-null assignee/completed when missing on the existing record
       if (!existing.assignee && t.assignee) existing.assignee = t.assignee
       if (existing.completed === undefined && t.completed !== undefined) existing.completed = t.completed

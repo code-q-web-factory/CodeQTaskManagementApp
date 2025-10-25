@@ -19,6 +19,8 @@ export interface AsanaTask {
     section?: { gid: AsanaGid; name: string | null } | null
     project?: { gid: AsanaGid; name: string }
   }>
+  // Optional tags used for filtering and classification
+  tags?: Array<{ gid: AsanaGid; name: string }>
 }
 
 export interface AsanaWorkspace {
