@@ -26,6 +26,7 @@ export const FOCUSED_WORK_PRESETS: Record<string, string[]> = {
   'FlowMagic': ['1206417002823341'],
   'Code Q Business': ['1204237571970621', '1209989106953453', '1207966618437691', '1207912485114757', '1204696214043074'],
   'NEOSidekick Success': ['1204176270489331', '1205145018707709'],
+  'Other': [],
 }
 
 

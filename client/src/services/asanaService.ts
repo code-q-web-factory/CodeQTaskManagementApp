@@ -1,4 +1,4 @@
-import type { AsanaPaginatedResponse, AsanaTask, AsanaWorkspace } from '../types/asana'
+import type { AsanaPaginatedResponse, AsanaTask, AsanaWorkspace, AsanaUser } from '../types/asana'
 import { EXCLUDED_PROJECT_IDS } from '../config/asana'
 // The official asana SDK is CommonJS. Use dynamic import in the browser so we don't rely on require().
 
@@ -26,11 +26,16 @@ type ProjectsApi = {
   ): Promise<{ data: Array<{ gid: string; name: string }>; next_page?: { offset: string } | null }>
 }
 
+type UsersApi = {
+  getUser(userGid: string, opts: { opt_fields?: string }): Promise<{ data: AsanaUser }>
+}
+
 interface AsanaSdk {
   ApiClient: { instance: AsanaClient }
   WorkspacesApi: new () => unknown
   TasksApi: new () => unknown
   ProjectsApi: new () => unknown
+  UsersApi: new () => unknown
 }
 
 let AsanaSDK: AsanaSdk | null = null
@@ -70,11 +75,15 @@ export class AsanaService {
   private static instance: AsanaService | null = null
   private token: string | null = null
   private memo: MemoCache<unknown>
+  private memo10Min: MemoCache<unknown>
+  private inFlightByKey = new Map<string, Promise<AsanaTask[]>>()
   private workspacesApi: WorkspacesApi | null = null
   private tasksApi: TasksApi | null = null
+  private usersApi: UsersApi | null = null
 
   private constructor() {
     this.memo = new MemoCache<unknown>(60_000)
+    this.memo10Min = new MemoCache<unknown>(600_000)
   }
 
   static getInstance(): AsanaService {
@@ -94,11 +103,21 @@ export class AsanaService {
 
     this.workspacesApi = new (Asana.WorkspacesApi as new () => unknown)() as unknown as WorkspacesApi
     this.tasksApi = new (Asana.TasksApi as new () => unknown)() as unknown as TasksApi
+    this.usersApi = new (Asana.UsersApi as new () => unknown)() as unknown as UsersApi
     this.memo.clear()
+    this.memo10Min.clear()
   }
 
   getToken() {
     return this.token
+  }
+
+  async getCurrentUser(): Promise<AsanaUser> {
+    if (!this.usersApi) throw new Error('Asana token not set')
+    return this.withMemo('me', async () => {
+      const res = await this.usersApi!.getUser('me', { opt_fields: 'gid,name' })
+      return res.data
+    })
   }
 
   private async withMemo<T>(key: string, loader: () => Promise<T>): Promise<T> {
@@ -120,6 +139,11 @@ export class AsanaService {
   // Free plan alternative: enumerate projects and tasks, then filter by created_at
   async findTasksOlderThan(workspaceGid: string, isoDate: string): Promise<AsanaTask[]> {
     if (!this.tasksApi) throw new Error('Asana token not set')
+    const memKey = this.cacheKeyOlderThan(workspaceGid, isoDate)
+    const memHit = this.memo10Min.get(memKey) as AsanaTask[] | undefined
+    if (memHit) return memHit
+    const inflight = this.inFlightByKey.get(memKey)
+    if (inflight) return inflight
     const Asana = await getAsanaSdk()
     const projectsApi = new (Asana.ProjectsApi as new () => unknown)() as unknown as ProjectsApi
     const opt_fields = [
@@ -142,7 +166,9 @@ export class AsanaService {
     const persisted = this.persistentGet<AsanaTask[]>(storageKey, 600_000)
     if (persisted) {
       // Always dedupe persisted results in case older versions cached duplicates
-      return this.dedupeTasksById(persisted)
+      const dedupedPersisted = this.dedupeTasksById(persisted)
+      this.memo10Min.set(memKey, dedupedPersisted)
+      return dedupedPersisted
     }
 
     const projectsKey = `workspace-projects:${workspaceGid}`
@@ -151,25 +177,48 @@ export class AsanaService {
       return res.data
     })
 
-    const results: AsanaTask[] = []
-    for (const project of projects) {
-      if (EXCLUDED_PROJECT_IDS.has(project.gid)) continue
-      let offset: string | undefined
-      do {
-        const page = await this.tasksApi!.getTasksForProject(project.gid, {
-          limit: 100,
-          offset,
-          opt_fields,
-        })
-        for (const t of page.data) {
-          if (t.created_at && new Date(t.created_at) < new Date(isoDate)) results.push(t)
-        }
-        offset = page.next_page?.offset
-      } while (offset)
+    const promise = (async () => {
+      const results: AsanaTask[] = []
+      for (const project of projects) {
+        if (EXCLUDED_PROJECT_IDS.has(project.gid)) continue
+        let offset: string | undefined
+        do {
+          const page = await this.tasksApi!.getTasksForProject(project.gid, {
+            limit: 100,
+            offset,
+            opt_fields,
+          })
+          for (const t of page.data) {
+            if (t.created_at && new Date(t.created_at) < new Date(isoDate)) results.push(t)
+          }
+          offset = page.next_page?.offset
+        } while (offset)
+      }
+      const deduped = this.dedupeTasksById(results)
+      this.persistentSet(storageKey, deduped)
+      this.memo10Min.set(memKey, deduped)
+      return deduped
+    })()
+    this.inFlightByKey.set(memKey, promise)
+    try {
+      return await promise
+    } finally {
+      this.inFlightByKey.delete(memKey)
     }
-    const deduped = this.dedupeTasksById(results)
-    this.persistentSet(storageKey, deduped)
-    return deduped
+  }
+
+  // Returns cached result for findTasksOlderThan if available and fresh; otherwise null
+  getCachedTasksOlderThan(workspaceGid: string, isoDate: string): AsanaTask[] | null {
+    const storageKey = this.cacheKeyOlderThan(workspaceGid, isoDate)
+    const cached = this.persistentGet<AsanaTask[]>(storageKey, 600_000)
+    return cached ? this.dedupeTasksById(cached) : null
+  }
+
+  // Return in-memory cached result if available (10 minutes TTL), else null
+  getMemoizedTasksOlderThan(workspaceGid: string, isoDate: string): AsanaTask[] | null {
+    const memKey = this.cacheKeyOlderThan(workspaceGid, isoDate)
+    const mem = this.memo10Min.get(memKey) as AsanaTask[] | undefined
+    return mem ?? null
   }
 
   // ----- persistent cache helpers -----

@@ -30,8 +30,10 @@ export default function FocusedWorkPage() {
   const [selectedPreset, setSelectedPreset] = useState<PresetKey | null>(null)
   const [tasks, setTasks] = useState<NormalizedTask[]>([])
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [workspace, setWorkspace] = useState<AsanaWorkspace | null>(null)
+  const [meGid, setMeGid] = useState<string | null>(null)
 
   useEffect(() => {
     ;(async () => {
@@ -39,35 +41,85 @@ export default function FocusedWorkPage() {
       if (token) await asanaService.setToken(token)
       const workspaces = await asanaService.listWorkspaces()
       setWorkspace(workspaces[0] ?? null)
-    })().catch((e: any) => setError(e?.message ?? 'Failed initializing Asana'))
+      const me = await asanaService.getCurrentUser()
+      setMeGid(me.gid)
+    })().catch((e: unknown) => setError(e instanceof Error ? e.message : 'Failed initializing Asana'))
   }, [])
 
   useEffect(() => {
-    if (!selectedPreset || !workspace) return
+    if (!selectedPreset || !workspace || !meGid) return
     const projectIds = FOCUSED_WORK_PRESETS[selectedPreset]
-    if (!projectIds || projectIds.length === 0) {
+    const isOther = selectedPreset === 'Other'
+    if (!isOther && (!projectIds || projectIds.length === 0)) {
       setTasks([])
       return
     }
-    const run = async () => {
-      try {
-        setLoading(true)
+
+    let cancelled = false
+    const farFuture = new Date(2100, 0, 1).toISOString()
+
+    // 1) Instant read from persistent cache if available
+    try {
+      const cachedAll = asanaService.getCachedTasksOlderThan(workspace.gid, farFuture)
+      if (cachedAll) {
         setError(null)
-        // Reuse findTasksOlderThan to enumerate all tasks via project listing. Pass a far-future date
-        // so that all tasks (created before that date) are included.
-        const farFuture = new Date(2100, 0, 1).toISOString()
-        const all = await asanaService.findTasksOlderThan(workspace.gid, farFuture)
-        const candidate = all.filter((t) => t.assignee?.name?.includes('Roland Schütz'))
-        const filtered = candidate.filter((t) => t.memberships?.some((m) => m.project && projectIds.includes(m.project.gid)))
-        setTasks(filtered.map((t) => normalizeTask(t)))
-      } catch (e: any) {
-        setError(e?.message ?? 'Failed loading tasks')
-      } finally {
-        setLoading(false)
+        const candidate = cachedAll.filter((t) => t.assignee?.gid === meGid)
+        const allCurated = new Set(
+          Object.entries(FOCUSED_WORK_PRESETS)
+            .filter(([k]) => k !== 'Other')
+            .flatMap(([, ids]) => ids),
+        )
+        const filtered = isOther
+          ? candidate.filter((t) => !t.memberships?.some((m) => m.project && allCurated.has(m.project.gid)))
+          : candidate.filter((t) => t.memberships?.some((m) => m.project && projectIds.includes(m.project.gid)))
+        if (!cancelled) {
+          setTasks(filtered.map((t) => normalizeTask(t)))
+          setLoading(false)
+          setRefreshing(false)
+        }
+        // Fresh cache within 10 minutes: skip network entirely
+        return () => {
+          cancelled = true
+        }
       }
+      setLoading(true)
+      setRefreshing(false)
+    } catch {
+      // Ignore cache read errors and continue to network
+      setLoading(true)
+      setRefreshing(false)
     }
-    run()
-  }, [selectedPreset, workspace])
+
+    // 2) Fetch when no fresh cache exists
+    ;(async () => {
+      try {
+        const all = await asanaService.findTasksOlderThan(workspace.gid, farFuture)
+        if (cancelled) return
+        const candidate = all.filter((t) => t.assignee?.gid === meGid)
+        const allCurated = new Set(
+          Object.entries(FOCUSED_WORK_PRESETS)
+            .filter(([k]) => k !== 'Other')
+            .flatMap(([, ids]) => ids),
+        )
+        const filtered = isOther
+          ? candidate.filter((t) => !t.memberships?.some((m) => m.project && allCurated.has(m.project.gid)))
+          : candidate.filter((t) => t.memberships?.some((m) => m.project && projectIds.includes(m.project.gid)))
+        setTasks(filtered.map((t) => normalizeTask(t)))
+        setError(null)
+      } catch (e: unknown) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed loading tasks')
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+          setRefreshing(false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedPreset, workspace, meGid])
 
   const header = useMemo(
     () => (
@@ -100,6 +152,9 @@ export default function FocusedWorkPage() {
             <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
           )}
           {loading && <div className="mt-4 text-sm text-gray-600">Loading…</div>}
+          {!loading && refreshing && (
+            <div className="mt-4 text-xs text-gray-500">Refreshing…</div>
+          )}
 
           {selectedPreset && (
             <section className="mt-6">
