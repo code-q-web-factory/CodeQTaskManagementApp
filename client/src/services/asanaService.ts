@@ -15,7 +15,7 @@ type WorkspacesApi = {
 type TasksApi = {
   getTasksForProject(
     projectGid: string,
-    opts: { limit?: number; offset?: string; opt_fields?: string },
+    opts: { limit?: number; offset?: string; opt_fields?: string; completed_since?: string },
   ): Promise<AsanaPaginatedResponse<AsanaTask>>
 }
 
@@ -190,6 +190,8 @@ export class AsanaService {
             limit: 100,
             offset,
             opt_fields,
+            // Only return incomplete tasks per Asana API contract
+            completed_since: 'now',
           })
           for (const t of page.data) {
             if (t.created_at && new Date(t.created_at) < new Date(isoDate)) results.push(t)
