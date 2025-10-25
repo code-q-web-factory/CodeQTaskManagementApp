@@ -11,6 +11,7 @@ export function AppShell({ children }: AppShellProps) {
   const items = [
     { to: '/critical', label: 'Critical' },
     { to: '/focused', label: 'Focused Work' },
+    { to: '/waiting', label: 'Waiting for…' },
     { to: '/settings', label: 'Settings' },
   ]
   return (

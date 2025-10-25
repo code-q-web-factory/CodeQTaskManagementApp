@@ -34,6 +34,11 @@ function normalizeTask(t: AsanaTask): NormalizedTask {
   }
 }
 
+function isWaitingTitle(t: AsanaTask): boolean {
+  const name = (t.name ?? '').trim()
+  return name.startsWith('[WARTE AUF ')
+}
+
 export default function FocusedWorkPage() {
   const [selectedPreset, setSelectedPreset] = useState<PresetKey | null>(null)
   const [tasks, setTasks] = useState<NormalizedTask[]>([])
@@ -91,11 +96,13 @@ export default function FocusedWorkPage() {
           ? candidate
               .filter((t) => !t.memberships?.some((m) => m.project && allCurated.has(m.project.gid)))
               .filter((t) => !isExcludedByTag(t))
+              .filter((t) => !isWaitingTitle(t))
           : isDelegated
-          ? candidate.filter((t) => isExcludedByTag(t))
+          ? candidate.filter((t) => isExcludedByTag(t)).filter((t) => !isWaitingTitle(t))
           : candidate
               .filter((t) => t.memberships?.some((m) => m.project && projectIds.includes(m.project.gid)))
               .filter((t) => !isExcludedByTag(t))
+              .filter((t) => !isWaitingTitle(t))
         if (!cancelled) {
           if (isDelegated) {
             setDelegatedTasks(filtered.map((t) => normalizeTask(t)))
@@ -139,11 +146,13 @@ export default function FocusedWorkPage() {
           ? candidate
               .filter((t) => !t.memberships?.some((m) => m.project && allCurated.has(m.project.gid)))
               .filter((t) => !isExcludedByTag(t))
+              .filter((t) => !isWaitingTitle(t))
           : isDelegated
-          ? candidate.filter((t) => isExcludedByTag(t))
+          ? candidate.filter((t) => isExcludedByTag(t)).filter((t) => !isWaitingTitle(t))
           : candidate
               .filter((t) => t.memberships?.some((m) => m.project && projectIds.includes(m.project.gid)))
               .filter((t) => !isExcludedByTag(t))
+              .filter((t) => !isWaitingTitle(t))
         if (isDelegated) {
           setDelegatedTasks(filtered.map((t) => normalizeTask(t)))
           setTasks([])

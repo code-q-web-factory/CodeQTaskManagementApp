@@ -25,6 +25,11 @@ function isInMaybeLater(task: AsanaTask): boolean {
   return false
 }
 
+function isWaitingTitle(t: AsanaTask): boolean {
+  const name = (t.name ?? '').trim()
+  return name.startsWith('[WARTE AUF ')
+}
+
 function normalizeTask(t: AsanaTask, timeWorkedSeconds?: number): NormalizedTask {
   return {
     id: t.gid,
@@ -131,7 +136,7 @@ export default function CriticalPage() {
         }
 
         const olderSixNorm = asanaOldSixM
-          .filter((t) => !t.completed && !isInMaybeLater(t))
+          .filter((t) => !t.completed && !isInMaybeLater(t) && !isWaitingTitle(t))
           .map((t) => normalizeTask(t, byTask.get(t.gid)))
           // Deduplicate normalized tasks by id to avoid duplicate keys in render
           .reduce<NormalizedTask[]>((acc, cur) => {
@@ -141,7 +146,7 @@ export default function CriticalPage() {
         setOlderThanSixMonths(olderSixNorm)
 
         const olderOneNorm = asanaOldOneM
-          .filter((t) => !t.completed && !isInMaybeLater(t))
+          .filter((t) => !t.completed && !isInMaybeLater(t) && !isWaitingTitle(t))
           .map((t) => normalizeTask(t, byTask.get(t.gid)))
           .filter((t) => (t.timeWorkedSeconds ?? 0) > 3600)
           .reduce<NormalizedTask[]>((acc, cur) => {
