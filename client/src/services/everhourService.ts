@@ -67,6 +67,7 @@ export class EverhourService {
       id: String(r.id),
       // Ensure task id is always a string to match Asana task gid join keys
       taskId: r.task?.id != null ? String(r.task.id) : null,
+      taskUrl: r.task?.url ?? null,
       userId: String(r.user),
       time: r.time ?? 0,
       date: r.date,

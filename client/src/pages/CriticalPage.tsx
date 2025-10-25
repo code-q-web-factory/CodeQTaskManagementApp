@@ -38,6 +38,28 @@ function normalizeTask(t: AsanaTask, timeWorkedSeconds?: number): NormalizedTask
   }
 }
 
+function extractAsanaTaskGidFromEverhourTaskUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  try {
+    const u = new URL(url)
+    if (!u.hostname.includes('asana.com')) return null
+    const parts = u.pathname.split('/').filter(Boolean)
+    // Typical Asana permalink: /0/<projectId>/<taskId>[/...]
+    // Take the last numeric segment as task gid
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const seg = parts[i]
+      if (/^\d{10,}$/.test(seg)) return seg
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function looksLikeAsanaGid(id: string | null | undefined): id is string {
+  return !!id && /^\d{10,}$/.test(id)
+}
+
 export default function CriticalPage() {
   const [/* workspace */, setWorkspace] = useState<AsanaWorkspace | null>(null)
   const [olderThanSixMonths, setOlderThanSixMonths] = useState<NormalizedTask[]>([])
@@ -85,7 +107,13 @@ export default function CriticalPage() {
           asanaService.findTasksOlderThan(workspaces[0].gid, toISODate(oneMonthAgo)),
           (async () => {
             try {
-              return await everhourService.listTimeEntries({})
+              // Fetch Everhour time records only for the relevant window to ensure all
+              // needed entries are present (and avoid huge result sets)
+              const from = new Date()
+              from.setMonth(from.getMonth() - 6)
+              const fromStr = from.toISOString().slice(0, 10)
+              const toStr = new Date().toISOString().slice(0, 10)
+              return await everhourService.listTimeEntries({ from: fromStr, to: toStr })
             } catch {
               // Graceful degradation if Everhour key is missing
               return []
@@ -93,10 +121,13 @@ export default function CriticalPage() {
           })(),
         ])
 
-        const byTask = new Map(entries.filter((e) => e.taskId).map((e) => [e.taskId!, 0]))
+        // Build a lookup of total seconds per Asana task gid
+        const byTask = new Map<string, number>()
         for (const e of entries) {
-          if (!e.taskId) continue
-          byTask.set(e.taskId, (byTask.get(e.taskId) ?? 0) + (e.time ?? 0))
+          const gidFromUrl = extractAsanaTaskGidFromEverhourTaskUrl(e.taskUrl ?? null)
+          const candidate = gidFromUrl ?? (looksLikeAsanaGid(e.taskId) ? e.taskId! : null)
+          if (!candidate) continue
+          byTask.set(candidate, (byTask.get(candidate) ?? 0) + (e.time ?? 0))
         }
 
         const olderSixNorm = asanaOldSixM
