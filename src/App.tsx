@@ -7,7 +7,7 @@ import WaitingForPage from './pages/WaitingForPage'
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <AppShell>
         <Routes>
           <Route path="/" element={<Navigate to="/critical" replace />} />

@@ -8,6 +8,7 @@ const __dirname = dirname(__filename)
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/CodeQTaskManagementApp/',
   plugins: [react()],
   optimizeDeps: {
     include: ['asana'],
