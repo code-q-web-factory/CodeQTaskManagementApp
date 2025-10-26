@@ -167,9 +167,9 @@ export default function CriticalPage() {
 
   const header = useMemo(
     () => (
-      <div className="border-b border-gray-200 px-4 py-3 bg-white">
-        <h1 className="text-base font-semibold text-gray-900">Critical</h1>
-        <p className="text-xs text-gray-500">Code Q Management</p>
+      <div className="border-b border-gray-200 px-4 py-3 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">Critical</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400">Code Q Management</p>
       </div>
     ),
     [],
@@ -205,12 +205,12 @@ export default function CriticalPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col rounded-none sm:rounded-lg border border-gray-200 shadow-sm bg-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-[var(--color-gray-950)]">
+      <div className="mx-auto flex min-h-screen max-w-3xl flex-col rounded-none sm:rounded-lg border border-gray-200 shadow-sm bg-white dark:border-gray-800 dark:bg-gray-950">
         {header}
         <div className="p-4">
           {error && (
-            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">{error}</div>
           )}
           {loading && <LoadingMessage />}
 
@@ -224,25 +224,25 @@ export default function CriticalPage() {
           </div>
 
           <section className="mt-2">
-            <h2 className="text-sm font-semibold text-gray-800">Tasks older than six months</h2>
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Tasks older than six months</h2>
             <div className="mt-3 space-y-3">
               {filteredOlderThanSixMonths.map((t) => (
                 <TaskCard key={t.id} task={t} />
               ))}
               {!filteredOlderThanSixMonths.length && !loading && (
-                <div className="text-sm text-gray-500">No tasks found.</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">No tasks found.</div>
               )}
             </div>
           </section>
 
           <section className="mt-8">
-            <h2 className="text-sm font-semibold text-gray-800">Tasks older than one month with more than one hour spent</h2>
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Tasks older than one month with more than one hour spent</h2>
             <div className="mt-3 space-y-3">
               {filteredOlderThanOneMonth.map((t) => (
                 <TaskCard key={t.id} task={t} />
               ))}
               {!filteredOlderThanOneMonth.length && !loading && (
-                <div className="text-sm text-gray-500">No tasks found.</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">No tasks found.</div>
               )}
             </div>
           </section>

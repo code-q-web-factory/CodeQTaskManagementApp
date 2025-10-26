@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Explicit variable for dark background */
+  --color-gray-950: #030712;
+}
+
 html,
 body,
 #root {
@@ -10,4 +15,9 @@ body,
 
 body {
   @apply bg-gray-50 text-gray-900;
+}
+
+.dark body {
+  @apply text-gray-100;
+  background-color: var(--color-gray-950);
 }

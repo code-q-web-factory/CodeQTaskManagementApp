@@ -29,8 +29,8 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl p-6">
-      <h1 className="text-2xl font-bold">Settings</h1>
-      <p className="mt-1 text-sm text-gray-600">Store your API credentials in your browser. Data stays client-side.</p>
+      <h1 className="text-2xl font-bold dark:text-gray-100">Settings</h1>
+      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Store your API credentials in your browser. Data stays client-side.</p>
 
       <div className="mt-6 space-y-5">
         <div className="space-y-2">

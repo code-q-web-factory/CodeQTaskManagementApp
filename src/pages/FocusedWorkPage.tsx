@@ -179,9 +179,9 @@ export default function FocusedWorkPage() {
 
   const header = useMemo(
     () => (
-      <div className="border-b border-gray-200 px-4 py-3 bg-white">
-        <h1 className="text-base font-semibold text-gray-900">Focused Work</h1>
-        <p className="text-xs text-gray-500">Pick a focus area to see your tasks</p>
+      <div className="border-b border-gray-200 px-4 py-3 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">Focused Work</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400">Pick a focus area to see your tasks</p>
       </div>
     ),
     [],
@@ -238,17 +238,17 @@ export default function FocusedWorkPage() {
   }, [selectedPreset, tasks, delegatedTasks])
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col rounded-none sm:rounded-lg border border-gray-200 shadow-sm bg-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-[var(--color-gray-950)]">
+      <div className="mx-auto flex min-h-screen max-w-3xl flex-col rounded-none sm:rounded-lg border border-gray-200 shadow-sm bg-white dark:border-gray-800 dark:bg-gray-950">
         {header}
         <div className="p-4">
           <div className="flex flex-wrap gap-2">{buttons}</div>
           {error && (
-            <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+            <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">{error}</div>
           )}
           {loading && <LoadingMessage className="mt-4" />}
           {!loading && refreshing && (
-            <div className="mt-4 text-xs text-gray-500">Refreshing…</div>
+            <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">Refreshing…</div>
           )}
 
           {selectedPreset && (
@@ -263,7 +263,7 @@ export default function FocusedWorkPage() {
                 </ProjectSection>
               ))}
               {!groups.length && !loading && (
-                <div className="text-sm text-gray-500">No tasks found.</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">No tasks found.</div>
               )}
             </div>
           )}

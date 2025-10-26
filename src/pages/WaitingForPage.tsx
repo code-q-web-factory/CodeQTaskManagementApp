@@ -92,28 +92,28 @@ export default function WaitingForPage() {
 
   const header = useMemo(
     () => (
-      <div className="border-b border-gray-200 px-4 py-3 bg-white">
-        <h1 className="text-base font-semibold text-gray-900">Waiting for…</h1>
-        <p className="text-xs text-gray-500">Tasks starting with "[WARTE AUF" assigned to you</p>
+      <div className="border-b border-gray-200 px-4 py-3 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <h1 className="text-base font-semibold text-gray-900 dark:text-gray-100">Waiting for…</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400">Tasks starting with "[WARTE AUF" assigned to you</p>
       </div>
     ),
     [],
   )
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto flex min-h-screen max-w-3xl flex-col rounded-none sm:rounded-lg border border-gray-200 shadow-sm bg-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-[var(--color-gray-950)]">
+      <div className="mx-auto flex min-h-screen max-w-3xl flex-col rounded-none sm:rounded-lg border border-gray-200 shadow-sm bg-white dark:border-gray-800 dark:bg-gray-950">
         {header}
         <div className="p-4">
           {error && (
-            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">{error}</div>
           )}
           {loading && <LoadingMessage />}
           <div className="mt-3 space-y-3">
             {tasks.map((t) => (
               <TaskCard key={t.id} task={t} />
             ))}
-            {!tasks.length && !loading && <div className="text-sm text-gray-500">No tasks found.</div>}
+            {!tasks.length && !loading && <div className="text-sm text-gray-500 dark:text-gray-400">No tasks found.</div>}
           </div>
         </div>
       </div>

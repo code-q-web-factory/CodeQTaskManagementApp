@@ -17,19 +17,19 @@ export function TaskCard({ task }: TaskCardProps) {
       href={task.url}
       target="_blank"
       rel="noreferrer"
-      className="block rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow"
+      className="block rounded-lg border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-shadow dark:border-gray-800 dark:bg-gray-900"
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-base font-semibold text-gray-900">{task.title}</h3>
-          <div className="mt-1 text-sm text-gray-600">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{task.title}</h3>
+          <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
             <span className="inline-flex items-center gap-3">
               <span className="inline-flex items-center gap-1">
                 <span className="text-base">{emoji}</span>
                 <span>{firstName ?? name}</span>
               </span>
               {createdLabel && (
-                <span className="inline-flex items-center gap-1 text-gray-500">
+                <span className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400">
                   <span className="text-base">📅</span>
                   <span>{createdLabel}</span>
                 </span>
@@ -38,8 +38,8 @@ export function TaskCard({ task }: TaskCardProps) {
           </div>
         </div>
         <div className="text-right">
-          <div className="text-xs uppercase text-gray-500">Time worked</div>
-          <div className="text-sm font-medium text-gray-900">{hours.toFixed(2)} h</div>
+          <div className="text-xs uppercase text-gray-500 dark:text-gray-400">Time worked</div>
+          <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{hours.toFixed(2)} h</div>
         </div>
       </div>
     </a>

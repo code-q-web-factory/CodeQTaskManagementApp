@@ -5,10 +5,10 @@ export type LoadingMessageProps = HTMLAttributes<HTMLDivElement>
 
 export function LoadingMessage({ className, ...props }: LoadingMessageProps) {
   return (
-    <div className={clsx('flex flex-col items-center justify-center text-gray-700', className)} {...props}>
+    <div className={clsx('flex flex-col items-center justify-center text-gray-700 dark:text-gray-300', className)} {...props}>
       <div className="flex items-center gap-2">
         <svg
-          className="h-5 w-5 animate-spin text-gray-500"
+          className="h-5 w-5 animate-spin text-gray-500 dark:text-gray-400"
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -19,7 +19,7 @@ export function LoadingMessage({ className, ...props }: LoadingMessageProps) {
         </svg>
         <span className="text-sm font-medium">Loading</span>
       </div>
-      <p className="mt-1 text-xs text-gray-500">This can take up to one minute.</p>
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">This can take up to one minute.</p>
     </div>
   )
 }

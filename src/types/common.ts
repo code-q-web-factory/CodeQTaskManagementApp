@@ -1,5 +1,7 @@
 // Normalized domain types used by presentational components
 
+export type Theme = 'light' | 'dark'
+
 export interface NormalizedTask {
   id: string
   title: string
