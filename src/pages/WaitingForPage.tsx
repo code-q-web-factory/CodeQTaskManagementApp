@@ -3,6 +3,7 @@ import { asanaService } from '../services/asanaService'
 import type { AsanaTask, AsanaWorkspace } from '../types/asana'
 import type { NormalizedTask } from '../types/common'
 import { TaskCard } from '../components/TaskCard'
+import { LoadingMessage } from '../components/ui/LoadingMessage'
 
 function firstName(full: string | null): string | null {
   if (!full) return null
@@ -107,7 +108,7 @@ export default function WaitingForPage() {
           {error && (
             <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
           )}
-          {loading && <div className="text-sm text-gray-600">Loading…</div>}
+          {loading && <LoadingMessage />}
           <div className="mt-3 space-y-3">
             {tasks.map((t) => (
               <TaskCard key={t.id} task={t} />

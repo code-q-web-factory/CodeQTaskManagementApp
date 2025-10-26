@@ -6,6 +6,7 @@ import type { AsanaTask, AsanaWorkspace } from '../types/asana'
 import type { NormalizedTask } from '../types/common'
 import { TaskCard } from '../components/TaskCard'
 import { ProjectSection } from '../components/ProjectSection.tsx'
+import { LoadingMessage } from '../components/ui/LoadingMessage'
 
 type PresetKey = keyof typeof FOCUSED_WORK_PRESETS | 'Code Q Delegated'
 
@@ -245,7 +246,7 @@ export default function FocusedWorkPage() {
           {error && (
             <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
           )}
-          {loading && <div className="mt-4 text-sm text-gray-600">Loading…</div>}
+          {loading && <LoadingMessage className="mt-4" />}
           {!loading && refreshing && (
             <div className="mt-4 text-xs text-gray-500">Refreshing…</div>
           )}

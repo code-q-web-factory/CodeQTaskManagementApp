@@ -4,6 +4,7 @@ import { everhourService } from '../services/everhourService'
 import type { AsanaTask, AsanaWorkspace } from '../types/asana'
 import type { NormalizedTask } from '../types/common'
 import { TaskCard } from '../components/TaskCard'
+import { LoadingMessage } from '../components/ui/LoadingMessage'
 import { AssigneeFilter, type AssigneeFilterValue } from '../components/AssigneeFilter.tsx'
 
 function toISODate(d: Date) {
@@ -211,7 +212,7 @@ export default function CriticalPage() {
           {error && (
             <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
           )}
-          {loading && <div className="text-sm text-gray-600">Loading…</div>}
+          {loading && <LoadingMessage />}
 
           <div className="mb-4">
             <AssigneeFilter
