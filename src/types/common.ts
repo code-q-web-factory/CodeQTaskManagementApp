@@ -17,4 +17,19 @@ export interface NormalizedTask {
   projects?: Array<{ id: string; name: string }>
 }
 
+// Config for a single Focused Work tab
+export interface FocusedTabConfig {
+  id: string
+  label: string
+  projectIds: string[]
+  includeTagIds: string[]
+  excludeTagIds: string[]
+}
+
+// Storage schema for Focused Work tabs
+export interface FocusedTabsConfig {
+  version: 1
+  tabs: FocusedTabConfig[]
+}
+
 

@@ -22,8 +22,8 @@ type TasksApi = {
 type ProjectsApi = {
   getProjectsForWorkspace(
     workspaceGid: string,
-    opts: { limit?: number },
-  ): Promise<{ data: Array<{ gid: string; name: string }>; next_page?: { offset: string } | null }>
+    opts: { limit?: number; opt_fields?: string },
+  ): Promise<{ data: Array<{ gid: string; name: string; archived?: boolean }>; next_page?: { offset: string } | null }>
 }
 
 type UsersApi = {
@@ -76,6 +76,7 @@ export class AsanaService {
   private token: string | null = null
   private memo: MemoCache<unknown>
   private memo10Min: MemoCache<unknown>
+  private memo1Hour: MemoCache<unknown>
   private inFlightByKey = new Map<string, Promise<AsanaTask[]>>()
   private workspacesApi: WorkspacesApi | null = null
   private tasksApi: TasksApi | null = null
@@ -84,6 +85,7 @@ export class AsanaService {
   private constructor() {
     this.memo = new MemoCache<unknown>(60_000)
     this.memo10Min = new MemoCache<unknown>(600_000)
+    this.memo1Hour = new MemoCache<unknown>(3_600_000)
   }
 
   static getInstance(): AsanaService {
@@ -106,6 +108,7 @@ export class AsanaService {
     this.usersApi = new (Asana.UsersApi as new () => unknown)() as unknown as UsersApi
     this.memo.clear()
     this.memo10Min.clear()
+    this.memo1Hour.clear()
   }
 
   getToken() {
@@ -212,6 +215,36 @@ export class AsanaService {
     }
   }
 
+  async listProjectsForWorkspace(workspaceGid: string): Promise<Array<{ gid: string; name: string }>> {
+    const Asana = await getAsanaSdk()
+    const projectsApi = new (Asana.ProjectsApi as new () => unknown)() as unknown as ProjectsApi
+    const memKey = `projects:${workspaceGid}`
+    const storageKey = `aqm:v1:asana:projects:${workspaceGid}`
+
+    const mem = this.memo1Hour.get(memKey) as Array<{ gid: string; name: string }> | undefined
+    if (mem) return mem
+
+    const persisted = this.persistentGet<Array<{ gid: string; name: string; archived?: boolean }>>(storageKey, 3_600_000)
+    if (persisted && persisted.length) {
+      const haveArchivedFlag = typeof (persisted[0] as any).archived === 'boolean'
+      if (haveArchivedFlag) {
+        const filtered = persisted.filter((p) => !(p.archived === true)).map(({ gid, name }) => ({ gid, name }))
+        this.memo1Hour.set(memKey, filtered)
+        return filtered
+      }
+      // else fall through to fetch fresh with archived flag
+    }
+
+    const res = await projectsApi.getProjectsForWorkspace(workspaceGid, { limit: 100, opt_fields: 'gid,name,archived' })
+    const raw = res.data
+    const filtered = raw.filter((p) => !(p.archived === true))
+    // persist full shape including archived for future filtering without refetch
+    this.persistentSet(storageKey, raw)
+    const simplified = filtered.map(({ gid, name }) => ({ gid, name }))
+    this.memo1Hour.set(memKey, simplified)
+    return simplified
+  }
+
   // Returns cached result for findTasksOlderThan if available and fresh; otherwise null
   getCachedTasksOlderThan(workspaceGid: string, isoDate: string): AsanaTask[] | null {
     const storageKey = this.cacheKeyOlderThan(workspaceGid, isoDate)
@@ -254,7 +287,7 @@ export class AsanaService {
 
   clearPersistentCache(): void {
     try {
-      const prefixes = ['aqm:asana:olderThan:', 'aqm:v2:asana:olderThan:']
+      const prefixes = ['aqm:asana:olderThan:', 'aqm:v2:asana:olderThan:', 'aqm:v1:asana:projects:']
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i)
         if (k && prefixes.some((p) => k.startsWith(p))) localStorage.removeItem(k)
