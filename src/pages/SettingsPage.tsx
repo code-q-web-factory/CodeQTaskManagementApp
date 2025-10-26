@@ -10,7 +10,6 @@ import type { FocusedTabConfig, FocusedTabsConfig } from '../types/common'
 export default function SettingsPage() {
   const [asanaToken, setAsanaToken] = useState('')
   const [everhourKey, setEverhourKey] = useState('')
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null)
   const [projects, setProjects] = useState<Array<{ gid: string; name: string }>>([])
   const [tabsCfg, setTabsCfg] = useState<FocusedTabsConfig | null>(null)
   const [filter, setFilter] = useState('')
@@ -34,7 +33,6 @@ export default function SettingsPage() {
         const workspaces = await asanaService.listWorkspaces()
         const ws = workspaces[0]
         if (ws) {
-          setWorkspaceId(ws.gid)
           const projs = await asanaService.listProjectsForWorkspace(ws.gid)
           setProjects(projs)
         }
