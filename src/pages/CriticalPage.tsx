@@ -122,6 +122,7 @@ export default function CriticalPage() {
               return await everhourService.listTimeEntries({ from: fromStr, to: toStr })
             } catch {
               // Graceful degradation if Everhour key is missing
+              console.warn('[CriticalPage] Everhour listTimeEntries failed; continuing without time entries')
               return []
             }
           })(),

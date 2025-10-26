@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../components/ui/button'
 import { FOCUSED_WORK_PRESETS, EXCLUDED_TAG_IDS } from '../config/asana'
 import { asanaService } from '../services/asanaService'
+import { everhourService } from '../services/everhourService'
 import type { AsanaTask, AsanaWorkspace } from '../types/asana'
 import type { NormalizedTask } from '../types/common'
 import { TaskCard } from '../components/TaskCard'
@@ -16,7 +17,7 @@ function firstName(full: string | null): string | null {
   return first || null
 }
 
-function normalizeTask(t: AsanaTask): NormalizedTask {
+function normalizeTask(t: AsanaTask, timeWorkedSeconds?: number): NormalizedTask {
   return {
     id: t.gid,
     title: t.name,
@@ -25,6 +26,7 @@ function normalizeTask(t: AsanaTask): NormalizedTask {
     assigneeFirstName: firstName(t.assignee?.name ?? null),
     assigneeFullName: t.assignee?.name ?? null,
     assigneeId: t.assignee?.gid ?? null,
+    timeWorkedSeconds: timeWorkedSeconds ?? 0,
     projects: (t.memberships ?? [])
       .map((m) => m.project)
       .filter((p): p is { gid: string; name: string } => !!p)
@@ -54,6 +56,11 @@ export default function FocusedWorkPage() {
     ;(async () => {
       const token = asanaService.getToken() ?? localStorage.getItem('asanaToken')
       if (token) await asanaService.setToken(token)
+      // Initialize Everhour key if present so we can load time entries
+      try {
+        const ehKey = localStorage.getItem('everhourKey')
+        everhourService.setApiKey(ehKey)
+      } catch {}
       const workspaces = await asanaService.listWorkspaces()
       setWorkspace(workspaces[0] ?? null)
       const me = await asanaService.getCurrentUser()
@@ -77,6 +84,44 @@ export default function FocusedWorkPage() {
 
     let cancelled = false
     const farFuture = new Date(2100, 0, 1).toISOString()
+
+    // Helper to fetch Everhour and build map of seconds by Asana task gid
+    const loadEverhourMap = async (): Promise<Map<string, number>> => {
+      try {
+        const from = new Date()
+        from.setMonth(from.getMonth() - 6)
+        const fromStr = from.toISOString().slice(0, 10)
+        const toStr = new Date().toISOString().slice(0, 10)
+        const entries = await everhourService.listTimeEntries({ from: fromStr, to: toStr })
+        const byTask = new Map<string, number>()
+        const extractAsanaTaskGidFromEverhourTaskUrl = (url: string | null | undefined): string | null => {
+          if (!url) return null
+          try {
+            const u = new URL(url)
+            if (!u.hostname.includes('asana.com')) return null
+            const parts = u.pathname.split('/').filter(Boolean)
+            for (let i = parts.length - 1; i >= 0; i--) {
+              const seg = parts[i]
+              if (/^\d{10,}$/.test(seg)) return seg
+            }
+            return null
+          } catch {
+            return null
+          }
+        }
+        const looksLikeAsanaGid = (id: string | null | undefined): id is string => !!id && /^\d{10,}$/.test(id)
+        for (const e of entries) {
+          const gidFromUrl = extractAsanaTaskGidFromEverhourTaskUrl(e.taskUrl ?? null)
+          const candidate = gidFromUrl ?? (looksLikeAsanaGid(e.taskId) ? e.taskId! : null)
+          if (!candidate) continue
+          byTask.set(candidate, (byTask.get(candidate) ?? 0) + (e.time ?? 0))
+        }
+        return byTask
+      } catch (e) {
+        console.warn('[FocusedWorkPage] Everhour load failed, proceeding without time', e)
+        return new Map<string, number>()
+      }
+    }
 
     // 1) Instant read from persistent cache if available
     try {
@@ -105,6 +150,7 @@ export default function FocusedWorkPage() {
               .filter((t) => !isExcludedByTag(t))
               .filter((t) => !isWaitingTitle(t))
         if (!cancelled) {
+          // First render quickly without time
           if (isDelegated) {
             setDelegatedTasks(filtered.map((t) => normalizeTask(t)))
             setTasks([])
@@ -114,6 +160,18 @@ export default function FocusedWorkPage() {
           }
           setLoading(false)
           setRefreshing(false)
+          // Then enrich with Everhour times asynchronously
+          ;(async () => {
+            const byTask = await loadEverhourMap()
+            if (cancelled) return
+            if (isDelegated) {
+              setDelegatedTasks(filtered.map((t) => normalizeTask(t, byTask.get(t.gid))))
+              setTasks([])
+            } else {
+              setTasks(filtered.map((t) => normalizeTask(t, byTask.get(t.gid))))
+              setDelegatedTasks([])
+            }
+          })()
         }
         // Fresh cache within 10 minutes: skip network entirely
         return () => {
@@ -131,7 +189,10 @@ export default function FocusedWorkPage() {
     // 2) Fetch when no fresh cache exists
     ;(async () => {
       try {
-        const all = await asanaService.findTasksOlderThan(workspace.gid, farFuture)
+        const [all, byTask] = await Promise.all([
+          asanaService.findTasksOlderThan(workspace.gid, farFuture),
+          loadEverhourMap(),
+        ])
         if (cancelled) return
         const candidate = all.filter((t) => t.assignee?.gid === meGid)
         const isExcludedByTag = (t: AsanaTask): boolean => {
@@ -155,10 +216,10 @@ export default function FocusedWorkPage() {
               .filter((t) => !isExcludedByTag(t))
               .filter((t) => !isWaitingTitle(t))
         if (isDelegated) {
-          setDelegatedTasks(filtered.map((t) => normalizeTask(t)))
+          setDelegatedTasks(filtered.map((t) => normalizeTask(t, byTask.get(t.gid))))
           setTasks([])
         } else {
-          setTasks(filtered.map((t) => normalizeTask(t)))
+          setTasks(filtered.map((t) => normalizeTask(t, byTask.get(t.gid))))
           setDelegatedTasks([])
         }
         setError(null)
